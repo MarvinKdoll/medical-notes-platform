@@ -1,0 +1,142 @@
+name: Deploy Medical Notes Platform
+
+on:
+  push: 
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env: 
+  AWS_REGION: us-west-2
+  ECR_REPOSITORY: medical-notes-backend
+
+jobs:
+
+#phase 1, test code
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get code from GitHub
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Python packages 
+        run: |
+          cd: backend
+          pip install -r requirements.txt
+
+      - name: Run integration tests
+        run: |
+          cd backend
+          python -m pytest tests/ -v
+          env: 
+          JWT_SECRET_KET: test-secret-key
+
+#phase 2, build container image
+build: 
+  name: Build Container
+  runs-on: ubuntu-latest
+  needs: test
+  if: github.ref == 'refs/heads/main'
+
+  outputs: 
+    image: ${{ steps.build-image.outputs.image }}
+
+  steps:
+    - name: Get code from GitHub
+      uses: actions/checkoutv4
+
+    - name: Login to AWS
+      uses: aws-actions/configure-aws-credentials@v2
+      with: 
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS.SECRET.ACCESS.KEY }}
+      aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+    id: login-ecr
+    uses: aws-actions/amazon-ecr-login@v1
+    
+    - name: Build and push Docker image
+    id: build-image
+    env:
+      ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      IMAGE_TAG: ${{ github.sha }}
+     run: |
+       cd backend
+       docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+       docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+       echo "image=$ECR_REGISTRY/$ECR_REPOSITORY: $IMAGE_TAG"  >> $GITHUB_OUTPUT
+
+#phase 3 deply infrastructure
+infrastructure: 
+  name: Deploy AWS Infrastructure 
+  runs-on: ubuntu-latest
+  needs: test
+  if: github.ref == 'refs/heads/main'
+
+  steps: 
+  - name: Get code from GitHub
+    uses: actions/checkout@v4
+
+  - name: Login to AWS
+    uses: aws-actions.configure-aws-credentials@v2
+    with: 
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secret.AWS_SECRET_ACCESS_KEY }}
+      aws-region: ${{ env.AWS.REGION }}
+
+  - name: Initialize Terraform 
+    run: |
+     cd Infrastructure/ terraform
+     terraform init
+    env:
+      TF_VAR_jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }} 
+      
+  - name: Apply Terraform changes
+    if: github.ref == 'refs/heads/main'
+    run: | 
+     cd infrastructure/terraform
+     terraform plan 
+     env: 
+      TF_VAR_jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
+      
+#phase 4, update Lambda function
+deploy: 
+  name: Update Lambda Function
+  runs-on: ubuntu-latest
+  needs: [build, infrastructure]
+  if: github.ref == 'refs/heads/main'
+
+  steps: 
+    - name: Login to AWS
+      uses: aws-actions/configure-aws-credentials@v2
+      with: 
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AES_SECRET_ACCESS_KEY }} 
+        aws-region: ${{ env.AWS_REGION }}
+    - name: Update Lambda function with new image 
+      run: | 
+        aws lambda update-function-code \
+          --function-name medical=notes-backend \
+          --image-url ${{ needs.build.outputs.image }}
+
+          aws lambda wait function-updated \
+            --function-name medical-notes-backend
+
+
+      
+      
+   
+
+
+ 
+
+
+    
