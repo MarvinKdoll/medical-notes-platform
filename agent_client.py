@@ -2,6 +2,7 @@ import logging
 import uuid
 import json
 import boto3
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -9,8 +10,11 @@ logger = logging.getLogger(__name__)
 bedrock_agent = boto3.client("bedrock-agent-runtime")
 
 #Constants agent setup
-AGENT_ID = "I8ACTI5KHE"
-AGENT_ALIAS_ID = "3GPGLSUGDJ"
+AGENT_ID = os.environ.get("BEDROCK_AGENT_ID")
+AGENT_ALIAS_ID = os.environ.get("BEDROCK_AGENT_ALIAS_ID")
+
+if not AGENT_ID or not AGENT_ALIAS_ID:
+    raise ValueError("BEDROCK_AGENT_ID and BEDROCK_AGENT_ALIAS_ID environment variables must be set")
 
 #Sends the input to the Bedrock agent
 def get_cleaned_note(note_input):
