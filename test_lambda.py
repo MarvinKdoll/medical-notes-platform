@@ -1,4 +1,5 @@
 import unittest
+import os
 from unittest.mock import patch, MagicMock
 from lambda_function import lambda_handler
 import json
@@ -9,6 +10,11 @@ class MockContext:
 
 class TestLambdaHandler(unittest.TestCase):
     
+    @patch.dict(os.environ, {
+        'BEDROCK_AGENT_ID': 'test-agent-id',
+        'BEDROCK_AGENT_ALIAS_ID': 'test-alias-id',
+        'JWT_SECRET_KEY': 'test-secret-key'
+    })
     @patch('lambda_function.verify_token')
     @patch('lambda_function.save_to_dynamo')
     @patch('lambda_function.get_cleaned_note')
@@ -40,6 +46,11 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertIn("cleaned_note", body)
         self.assertEqual(body["cleaned_note"], "Patient with chest pain for 2 days, plan: laboratory tests")
 
+    @patch.dict(os.environ, {
+        'BEDROCK_AGENT_ID': 'test-agent-id',
+        'BEDROCK_AGENT_ALIAS_ID': 'test-alias-id',
+        'JWT_SECRET_KEY': 'test-secret-key'
+    })
     @patch('lambda_function.verify_token')
     def test_missing_note(self, mock_verify_token):
         # Mock the auth verification
@@ -57,6 +68,11 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(result["statusCode"], 400)
         self.assertIn("error", body)
 
+    @patch.dict(os.environ, {
+        'BEDROCK_AGENT_ID': 'test-agent-id', 
+        'BEDROCK_AGENT_ALIAS_ID': 'test-alias-id',
+        'JWT_SECRET_KEY': 'test-secret-key'
+    })
     @patch('lambda_function.verify_token')
     @patch('lambda_function.save_to_dynamo')
     @patch('lambda_function.get_cleaned_note')
@@ -81,6 +97,11 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertIn("error", body)
         self.assertIn("AI service", body["error"])
 
+    @patch.dict(os.environ, {
+        'BEDROCK_AGENT_ID': 'test-agent-id',
+        'BEDROCK_AGENT_ALIAS_ID': 'test-alias-id', 
+        'JWT_SECRET_KEY': 'test-secret-key'
+    })
     @patch('lambda_function.verify_token')
     @patch('lambda_function.save_to_dynamo')
     @patch('lambda_function.get_cleaned_note')
@@ -119,6 +140,9 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(result["statusCode"], 401)
         self.assertIn("Authorization header required", body["error"])
 
+    @patch.dict(os.environ, {
+        'JWT_SECRET_KEY': 'test-secret-key'
+    })
     @patch('lambda_function.verify_token')
     def test_invalid_token(self, mock_verify_token):
         """Test invalid/expired token"""
